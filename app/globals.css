@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --green: #00ff41;
+  --green-dim: #00aa2a;
+  --green-dark: #003310;
+}
+
+@media screen {
+  html {
+    height: 100%;
+  }
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #000;
+  color: var(--green);
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+body::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── HUD glow ─────────────────────────────────────────────── */
+.glow {
+  text-shadow: 0 0 8px var(--green);
+}
+
+/* ── Sweeping scan line ───────────────────────────────────── */
+.scanline {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--green) 20%,
+    var(--green) 80%,
+    transparent
+  );
+  box-shadow: 0 0 12px var(--green);
+  opacity: 0.35;
+  animation: scanline 3s linear infinite;
+  will-change: transform;
+}
+
+@keyframes scanline {
+  from {
+    transform: translateY(-100vh);
+  }
+  to {
+    transform: translateY(100vh);
+  }
+}
+
+/* ── Typewriter reveal for new ARIA lines ─────────────────── */
+.typewriter {
+  overflow: hidden;
+  animation: typewriter 0.3s steps(20, end);
+}
+
+@keyframes typewriter {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+/* ── Pulsing red dot while an inference call is in flight ─── */
+.blink {
+  animation: blink 0.8s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+/* ── HUD corner brackets ──────────────────────────────────── */
+.hud-corner {
+  position: absolute;
+  width: 2rem;
+  height: 2rem;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.hud-corner-tl {
+  top: 0.4rem;
+  left: 0.4rem;
+  border-top: 2px solid var(--green-dim);
+  border-left: 2px solid var(--green-dim);
+}
+
+.hud-corner-tr {
+  top: 0.4rem;
+  right: 0.4rem;
+  border-top: 2px solid var(--green-dim);
+  border-right: 2px solid var(--green-dim);
+}
+
+.hud-corner-bl {
+  bottom: 0.4rem;
+  left: 0.4rem;
+  border-bottom: 2px solid var(--green-dim);
+  border-left: 2px solid var(--green-dim);
+}
+
+.hud-corner-br {
+  bottom: 0.4rem;
+  right: 0.4rem;
+  border-bottom: 2px solid var(--green-dim);
+  border-right: 2px solid var(--green-dim);
+}
+
+/* ── Mobile readability ───────────────────────────────────── */
+@media (max-width: 768px) {
+  .aria-line {
+    font-size: 0.8125rem;
+    line-height: 1.35;
+  }
+
+  .hud-meta {
+    font-size: 0.6875rem;
+  }
+}
