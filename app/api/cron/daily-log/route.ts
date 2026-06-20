@@ -21,7 +21,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const dateKey = getYesterdayKey();
+  const override = new URL(req.url).searchParams.get("date");
+  const dateKey = override ?? getYesterdayKey();
 
   // Step 1: fetch yesterday's scenes
   const raw = await kv.lrange<Scene>(`aria:scenes:${dateKey}`, 0, -1);
