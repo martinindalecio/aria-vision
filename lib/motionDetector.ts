@@ -6,10 +6,10 @@ const JPEG_QUALITY = 0.55;
 const MOTION_RATIO_THRESHOLD = 0.08;
 /** Per-pixel grayscale delta (0-255) above which a pixel counts as changed. */
 const PIXEL_DELTA_THRESHOLD = 28;
-/** Send a frame after this long even if the scene is static (heartbeat). */
-const HEARTBEAT_MS = 4000;
-/** Hard rate limit between API calls. */
-const MIN_INTERVAL_MS = 1200;
+/** Send a frame after this long even if the scene is static (heartbeat, ~5/min). */
+const HEARTBEAT_MS = 12000;
+/** Hard rate limit between API calls — caps motion-triggered captures at ~12/min. */
+const MIN_INTERVAL_MS = 5000;
 
 export class MotionDetector {
   private thumbCanvas: HTMLCanvasElement | null = null;
@@ -20,8 +20,8 @@ export class MotionDetector {
   /**
    * Decide whether a frame should be sent to the vision API right now.
    * Returns the 480x360 JPEG as a bare base64 string (no data: prefix)
-   * when motion exceeds 8% or the 4s heartbeat is due, respecting the
-   * 1200ms hard rate limit. Returns null otherwise.
+   * when motion exceeds 8% or the 12s heartbeat is due, respecting the
+   * 5000ms hard rate limit (~12/min budget). Returns null otherwise.
    */
   shouldCapture(video: HTMLVideoElement | null): string | null {
     if (typeof document === "undefined" || !video) return null;

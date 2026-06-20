@@ -1,12 +1,10 @@
 const STORAGE_KEY = "aria_session_cost";
 
-/** Claude Fable 5 rates: $10 / MTok input, $50 / MTok output. */
-const INPUT_PRICE_PER_TOKEN = 0.00001;
-const OUTPUT_PRICE_PER_TOKEN = 0.00005;
-/** Cache reads are billed at ~0.1x the input rate. */
-const CACHED_INPUT_PRICE_PER_TOKEN = 0.000001;
-/** Estimation model: assume 80% of input tokens are prompt-cache hits. */
-const CACHE_HIT_RATIO = 0.8;
+/** Gemini 2.0 Flash free tier — $0 per token up to quota limits. */
+const INPUT_PRICE_PER_TOKEN = 0;
+const OUTPUT_PRICE_PER_TOKEN = 0;
+const CACHED_INPUT_PRICE_PER_TOKEN = 0;
+const CACHE_HIT_RATIO = 0;
 
 export type TokenTotals = {
   input: number;

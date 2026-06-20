@@ -10,6 +10,7 @@ const MAX_LINES = 3;
 const CAPTURE_TICK_MS = 100;
 const COST_REFRESH_MS = 2000;
 const BOOT_LINE = "[ARIA ONLINE — AWAITING VISUAL FEED]";
+const THROTTLE_LINE = "[ARIA THROTTLED — QUEUED]";
 
 type VisionResponse = {
   result: string;
@@ -29,6 +30,7 @@ export default function Home() {
   const linesRef = useRef<string[]>([BOOT_LINE]);
   const pausedRef = useRef<boolean>(false);
   const inFlightRef = useRef<boolean>(false);
+  const throttleUntilRef = useRef<number>(0);
 
   const pushLine = useCallback((text: string): void => {
     setLines((prev) => {
@@ -47,6 +49,7 @@ export default function Home() {
 
   const runCapture = useCallback(async (): Promise<void> => {
     if (pausedRef.current || inFlightRef.current) return;
+    if (Date.now() < throttleUntilRef.current) return;
 
     const video = cameraRef.current?.getVideoElement() ?? null;
     const frame = motionDetector.shouldCapture(video);
@@ -61,6 +64,17 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: frame, prevContext }),
       });
+      if (res.status === 429) {
+        // Global rate limit hit — back off for the server-suggested window and
+        // show a calm "queued" state instead of a connection error.
+        const retryAfter = Number(res.headers.get("Retry-After")) || 4;
+        throttleUntilRef.current = Date.now() + retryAfter * 1000;
+        if (linesRef.current[linesRef.current.length - 1] !== THROTTLE_LINE) {
+          pushLine(THROTTLE_LINE);
+        }
+        setIsOnline(true);
+        return;
+      }
       if (!res.ok) {
         throw new Error(`vision API responded ${res.status}`);
       }

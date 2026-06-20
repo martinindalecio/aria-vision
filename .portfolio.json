@@ -1,0 +1,10 @@
+{
+  "name": "Aria Vision",
+  "status": "Prototype",
+  "year": "2026",
+  "tags": ["Next.js", "Claude API", "Computer vision"],
+  "description": {
+    "en": "A real-time AI camera vision HUD powered by Claude — point the camera at the world and let the model narrate what it sees.",
+    "es": "Un HUD de visión por cámara en tiempo real impulsado por Claude — apunta la cámara al mundo y deja que el modelo narre lo que ve."
+  }
+}

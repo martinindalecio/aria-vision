@@ -1,12 +1,13 @@
 import fs from "fs";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { visionRateLimiter } from "@/lib/rateLimiter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MODEL = "claude-haiku-4-5";
+const MODEL = "gemini-3.1-flash-lite";
 const MAX_TOKENS = 80;
 
 type VisionRequestBody = {
@@ -18,6 +19,7 @@ type VisionResponseBody = {
   result: string;
   inputTokens: number;
   outputTokens: number;
+  throttled?: boolean;
 };
 
 let cachedSystemPrompt: string | null = null;
@@ -32,13 +34,13 @@ function getSystemPrompt(): string {
   return cachedSystemPrompt;
 }
 
-let client: Anthropic | null = null;
+let genAI: GoogleGenerativeAI | null = null;
 
-function getClient(): Anthropic {
-  if (client === null) {
-    client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+function getClient(): GoogleGenerativeAI {
+  if (genAI === null) {
+    genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
   }
-  return client;
+  return genAI;
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse<VisionResponseBody>> {
@@ -46,11 +48,17 @@ export async function POST(req: NextRequest): Promise<NextResponse<VisionRespons
     const body = (await req.json()) as VisionRequestBody;
     const imageBase64 = typeof body.imageBase64 === "string" ? body.imageBase64 : "";
     if (!imageBase64) {
-      return NextResponse.json({
-        result: "[SIGNAL LOST]",
-        inputTokens: 0,
-        outputTokens: 0,
-      });
+      return NextResponse.json({ result: "[SIGNAL LOST]", inputTokens: 0, outputTokens: 0 });
+    }
+
+    // Shared throttle across every open session. When the global window is full
+    // we tell the client to back off rather than letting Google issue a hard 429.
+    if (!visionRateLimiter.tryAcquire()) {
+      const retryAfterSec = Math.max(1, Math.ceil(visionRateLimiter.retryAfterMs() / 1000));
+      return NextResponse.json(
+        { result: "[ARIA THROTTLED — QUEUED]", inputTokens: 0, outputTokens: 0, throttled: true },
+        { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+      );
     }
 
     const prevContext =
@@ -58,60 +66,27 @@ export async function POST(req: NextRequest): Promise<NextResponse<VisionRespons
         ? body.prevContext
         : "none. This is the first frame.";
 
-    const response = await getClient().messages.create({
+    const model = getClient().getGenerativeModel({
       model: MODEL,
-      max_tokens: MAX_TOKENS,
-      system: [
-        {
-          type: "text",
-          text: getSystemPrompt(),
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: "image/jpeg",
-                data: imageBase64,
-              },
-            },
-            {
-              type: "text",
-              text: "[PREV_CONTEXT]: " + prevContext,
-            },
-          ],
-        },
-      ],
+      systemInstruction: getSystemPrompt(),
+      generationConfig: { maxOutputTokens: MAX_TOKENS },
     });
 
-    const result = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === "text")
-      .map((block) => block.text)
-      .join("\n")
-      .trim();
+    const geminiResult = await model.generateContent([
+      { inlineData: { mimeType: "image/jpeg", data: imageBase64 } },
+      "[PREV_CONTEXT]: " + prevContext,
+    ]);
 
-    const usage = response.usage;
-    const inputTokens =
-      usage.input_tokens +
-      (usage.cache_read_input_tokens ?? 0) +
-      (usage.cache_creation_input_tokens ?? 0);
+    const text = geminiResult.response.text().trim();
+    const usage = geminiResult.response.usageMetadata;
 
     return NextResponse.json({
-      result: result.length > 0 ? result : "[NO SIGNAL]",
-      inputTokens,
-      outputTokens: usage.output_tokens,
+      result: text.length > 0 ? text : "[NO SIGNAL]",
+      inputTokens: usage?.promptTokenCount ?? 0,
+      outputTokens: usage?.candidatesTokenCount ?? 0,
     });
   } catch (error) {
     console.error("[ARIA] vision route error:", error);
-    return NextResponse.json({
-      result: "[SIGNAL LOST]",
-      inputTokens: 0,
-      outputTokens: 0,
-    });
+    return NextResponse.json({ result: "[SIGNAL LOST]", inputTokens: 0, outputTokens: 0 });
   }
 }
