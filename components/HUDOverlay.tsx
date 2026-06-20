@@ -62,6 +62,12 @@ export default function HUDOverlay({
             ●
           </span>
         )}
+        <a
+          href="/log"
+          className="pointer-events-auto absolute bottom-2 right-3 text-xs text-hud-dim transition-colors hover:text-hud"
+        >
+          [LOG]
+        </a>
 
         <div className="flex h-full flex-col justify-end gap-2 overflow-hidden">
           {visibleLines.map((line, index) => {
