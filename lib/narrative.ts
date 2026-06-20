@@ -35,11 +35,15 @@ export async function generateNarrative(
   );
 
   const text = result.response.text().trim();
-  const titleMatch = text.match(/^#\s+(.+)$/m);
+  // Accept "# Title" or "Title: ..." as the title line
+  const titleMatch =
+    text.match(/^#\s+(.+)$/m) ?? text.match(/^Title:\s+(.+)$/im);
   const title = titleMatch?.[1]?.trim() ?? "ARIA Daily Log";
   const titleLine = titleMatch?.[0] ?? "";
-  const bodyStart = text.indexOf(titleLine) + titleLine.length;
-  const body_md = text.slice(bodyStart).trim();
+  const bodyStart = titleLine
+    ? text.indexOf(titleLine) + titleLine.length
+    : 0;
+  const body_md = text.slice(bodyStart).replace(/^Title:\s+.+\n*/im, "").trim();
 
   return { title, body_md };
 }

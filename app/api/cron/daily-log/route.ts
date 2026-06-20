@@ -69,9 +69,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   // Step 6: publish
+  const rawBody = (review.clean_body || body_md).trim();
+  // Strip any "Title: ..." prefix the reviewer sometimes echoes back
+  const cleanedBody = rawBody.replace(/^#+\s+.+\n*/m, "").replace(/^Title:\s+.+\n*/im, "").trim();
   const post = {
     title,
-    body_md: review.clean_body || body_md,
+    body_md: cleanedBody,
     stats,
     published_at: new Date().toISOString(),
   };
