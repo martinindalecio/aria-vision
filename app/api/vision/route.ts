@@ -129,7 +129,6 @@ export async function POST(req: NextRequest): Promise<NextResponse<VisionRespons
       };
       const location =
         [
-          decode(req.headers.get("x-vercel-ip-city")),
           decode(req.headers.get("x-vercel-ip-country-region")),
           decode(req.headers.get("x-vercel-ip-country")),
         ]
