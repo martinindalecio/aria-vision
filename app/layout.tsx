@@ -5,7 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "ARIA Vision",
   description:
-    "Real-time AI camera perception HUD powered by Claude Fable 5",
+    "Real-time AI camera perception HUD powered by Google Gemini",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

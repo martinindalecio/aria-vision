@@ -2,14 +2,13 @@
   "name": "aria-vision",
   "version": "1.0.0",
   "private": true,
-  "description": "Real-time AI camera vision HUD powered by Claude Fable 5",
+  "description": "Real-time AI camera vision HUD powered by Google Gemini",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "latest",
     "@google/generative-ai": "^0.24.1",
     "next": "^14.2.0",
     "react": "^18.3.1",

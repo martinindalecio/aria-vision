@@ -43,11 +43,45 @@ function getClient(): GoogleGenerativeAI {
   return genAI;
 }
 
+// Minimal request logging: one structured line per request to the runtime logs
+// (read with: `vercel logs <deployment> | grep ARIA-LOG`). Records the outcome,
+// the scene description the model returned ("what was seen"), and coarse
+// IP-based location from Vercel's edge headers. No image is stored and no
+// precise geolocation is requested (that would need a browser consent prompt).
+type Outcome = "ok" | "no_signal" | "throttled" | "signal_lost" | "empty_input";
+function logOutcome(
+  req: NextRequest,
+  outcome: Outcome,
+  extra: { seen?: string; outputTokens?: number; error?: string } = {}
+): void {
+  const decode = (v: string | null): string | undefined => {
+    if (!v) return undefined;
+    try {
+      return decodeURIComponent(v);
+    } catch {
+      return v;
+    }
+  };
+  const location =
+    [
+      decode(req.headers.get("x-vercel-ip-city")),
+      decode(req.headers.get("x-vercel-ip-country-region")),
+      decode(req.headers.get("x-vercel-ip-country")),
+    ]
+      .filter(Boolean)
+      .join(", ") || "unknown";
+  console.log(
+    "[ARIA-LOG] " +
+      JSON.stringify({ ts: new Date().toISOString(), outcome, location, ...extra })
+  );
+}
+
 export async function POST(req: NextRequest): Promise<NextResponse<VisionResponseBody>> {
   try {
     const body = (await req.json()) as VisionRequestBody;
     const imageBase64 = typeof body.imageBase64 === "string" ? body.imageBase64 : "";
     if (!imageBase64) {
+      logOutcome(req, "empty_input");
       return NextResponse.json({ result: "[SIGNAL LOST]", inputTokens: 0, outputTokens: 0 });
     }
 
@@ -55,6 +89,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<VisionRespons
     // we tell the client to back off rather than letting Google issue a hard 429.
     if (!visionRateLimiter.tryAcquire()) {
       const retryAfterSec = Math.max(1, Math.ceil(visionRateLimiter.retryAfterMs() / 1000));
+      logOutcome(req, "throttled");
       return NextResponse.json(
         { result: "[ARIA THROTTLED — QUEUED]", inputTokens: 0, outputTokens: 0, throttled: true },
         { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
@@ -79,14 +114,21 @@ export async function POST(req: NextRequest): Promise<NextResponse<VisionRespons
 
     const text = geminiResult.response.text().trim();
     const usage = geminiResult.response.usageMetadata;
+    const result = text.length > 0 ? text : "[NO SIGNAL]";
+    const outputTokens = usage?.candidatesTokenCount ?? 0;
+
+    logOutcome(req, text.length > 0 ? "ok" : "no_signal", { seen: result, outputTokens });
 
     return NextResponse.json({
-      result: text.length > 0 ? text : "[NO SIGNAL]",
+      result,
       inputTokens: usage?.promptTokenCount ?? 0,
-      outputTokens: usage?.candidatesTokenCount ?? 0,
+      outputTokens,
     });
   } catch (error) {
     console.error("[ARIA] vision route error:", error);
+    logOutcome(req, "signal_lost", {
+      error: error instanceof Error ? error.message.slice(0, 200) : String(error).slice(0, 200),
+    });
     return NextResponse.json({ result: "[SIGNAL LOST]", inputTokens: 0, outputTokens: 0 });
   }
 }
