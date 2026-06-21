@@ -6,7 +6,7 @@ Two independent workstreams. Decisions locked below. UI follows `DESIGN.md`
 ARIA's prose).
 
 ## Decisions locked
-- **D1 = C — Vercel Authentication** for the admin (deployment protection, edge-enforced).
+- **D1 = REVISED — middleware auth in same project** (see Decision #19). Original D1=C (separate Vercel project + Vercel Auth) was correct at plan time but is overkill for a solo-user admin. Admin lives at `/admin` in this repo, protected by Next.js middleware checking `ADMIN_SECRET` env var. Rationale: Vercel Auth gates the whole deployment — enabling it would lock out the public camera app. For one user, a secret token in middleware is the right tradeoff.
 - **D2 = B — single Gemini call** returns both English + Spanish narrative.
 
 ---
@@ -98,38 +98,34 @@ changes can be prototyped in parallel.
 
 ## Workstream 2 — Owner admin dashboard
 
-### Architecture (consequence of D1 = C)
-Vercel Authentication protects a **whole deployment**, not a path. `/` and `/log`
-must stay public, so the admin runs as a **separate Vercel project** that reads
-the same Upstash KV (same `KV_REST_API_URL` / `KV_REST_API_TOKEN`):
+### Architecture (D1 revised — same project, middleware auth)
+Admin lives at `/admin` in this repo. Next.js middleware (`middleware.ts`) intercepts
+all `/admin/*` requests and checks for a `ADMIN_SECRET` cookie set by `/api/admin/login`.
+No separate Vercel project, no new repo.
 
-- Separate small Next app (sibling repo, or a second project off this repo) at
-  e.g. `admin.aria.martingalaz.com`.
-- Vercel Authentication ON for that project → only Martin's Vercel login gets in,
-  enforced at the edge before any code runs.
-- Admin code never ships in the public bundle. No public `/admin` route exists.
-- Reads KV directly in server components — **no `/api/admin/*` JSON endpoints**
-  (the deleted `/api/debug` leaked precisely because it was a fetchable endpoint
-  behind a shared secret; with no endpoint there is nothing to attack but the
-  edge gate).
+- **`/admin`** — dashboard root (scenes, tallies, held posts, published posts). Server component.
+- **`/admin/login`** — simple password form. On submit, sets an `httpOnly` cookie and redirects to `/admin`.
+- **`middleware.ts`** — if `ADMIN_SECRET` cookie is absent or wrong, redirect to `/admin/login`.
+- **`ADMIN_SECRET` env var** — the password hash (bcrypt). Set via `vercel env add`.
+- Reads KV directly in server components — **no `/api/admin/*` JSON endpoints**.
+- `<meta name="robots" content="noindex">` on all `/admin` pages.
 
-**Verify before building:** confirm production-level Vercel Authentication is
-available on the current Vercel plan. If path-scoping within one app is ever
-preferred over a separate project, the alternatives are (a) middleware auth
-(was D1 = B), or (b) "Sign in with Vercel" as an in-app OAuth provider — both
-keep one app but move the gate into code.
+**What the middleware replaces:** Vercel Auth would have gated the whole project (public app too). Middleware gates only `/admin/*` — public camera and `/log` stay open.
+
+**Security posture:** session cookie is `httpOnly; Secure; SameSite=Strict; Max-Age=86400`. The only attack surface is the `/admin/login` form — rate-limit it with the existing `lib/rateLimiter.ts` (already in place for vision route). KV token never leaves the server.
 
 ### What the dashboard shows (all already in KV)
 - Scenes per day: local time (`LOG_TIMEZONE`), coarse location, what ARIA saw.
 - Daily tallies: total scenes, unique locations/countries, sessions.
-- **Held posts** (`aria:held:<date>`): privacy-flagged, with review/release.
+- **Held posts** (`aria:held:<date>`): privacy-flagged, with review/release action.
 - Published posts (EN/ES).
 
 ### Security checklist
-- Auth enforced by Vercel at the edge (no app login surface to attack).
-- Admin project `noindex`, not in any sitemap.
-- Secrets in env only; KV token never sent to the client.
+- Auth gated by middleware — no `/admin` page reachable unauthenticated.
+- `noindex` on all admin pages; not in sitemap.
+- Secrets in env only; KV token and `ADMIN_SECRET` never sent to client.
 - No admin JSON endpoints — server components only.
+- Login form rate-limited via existing `lib/rateLimiter.ts`.
 
 ### Retention caveat
 Scenes carry a 3-day TTL (decision: keep it). The dashboard therefore shows a
@@ -150,13 +146,13 @@ incidental. Keep that framing through the build.
 | **A** | `feat: bilingual narrative generation (cron + storage)` | — | `lib/narrative.ts` + cron store both langs; backfill existing posts. Page unaffected via `?? body_md` fallback. |
 | **B** | `feat: /log EN/ES toggle + UI dictionary` | A | `lib/i18n.ts` chrome dict + client toggle (persists to `localStorage['aria:lang']`), flipping chrome and narrative. |
 | **F** | `feat: bilingual vision descriptions + HUD EN/ES toggle` | B | Extend vision route to return `description_en/es` in one Gemini call; import toggle from B; HUD swaps language instantly. |
-| **C** | `feat: admin project shell + Vercel Authentication` | — | Stand up separate protected project reading KV; minimal health view. Parallel to A/B/F. |
-| **D** | `feat: admin dashboard (scenes, tallies, held-post review)` | C | The real dashboard content. |
+| **C** | `feat: admin dashboard (/admin route + middleware auth)` | — | `/admin` in this repo; middleware checks `ADMIN_SECRET` cookie; login form; scenes/tallies/held-post review. Parallel to A/B/F. No separate Vercel project needed. |
 | **E** *(optional)* | `feat: scene retention rollup for admin history` | D | Only if >3-day history is wanted. |
 
-Dependency order: A → B → F, C → D. A and C are independent (can run in parallel).
+Dependency order: A → B → F, C standalone. A and C are independent (can run in parallel).
 Vision route changes for F can be prototyped in parallel with A/B since they touch
 separate files — but F ships after B to reuse the toggle component and i18n.ts.
+D is removed — C now covers both the shell and the dashboard content in one PR.
 
 ---
 
@@ -189,6 +185,7 @@ separate files — but F ships after B to reuse the toggle component and i18n.ts
 | 16 | Eng | Defer unit tests | Mechanical | P3 | Consistent with existing project; solo portfolio | Add tests now |
 | 17 | DX | Admin shows `[KV CONNECTION FAILED — CHECK ENV VARS]` in HUD chrome style | Mechanical | P1 | Prevents silent empty screen when KV token is missing in admin project | Silent empty |
 | 18 | DX | Admin held-post list shows `[NO HELD POSTS]` empty state | Mechanical | P5 | Consistent with HUD/log empty state patterns | Omit empty state |
+| 19 | Arch | **Reverse D1**: admin in same project via middleware auth, not separate Vercel project | User decision | User | Vercel Auth gates the whole deployment — public app would go behind login. For one user, `ADMIN_SECRET` middleware is simpler, equally secure, zero extra infra. PRs C+D collapse into one PR. | Keep separate project |
 
 ---
 
