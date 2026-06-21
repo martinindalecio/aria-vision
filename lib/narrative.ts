@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const MODEL = "gemini-2.0-flash";
+const MODEL = "gemini-3.1-flash-lite";
 
 let genAI: GoogleGenerativeAI | null = null;
 function getClient() {
