@@ -21,11 +21,13 @@ export async function generateNarrative(
       "You are ARIA, an AI that watched the world today through strangers' cameras. Write a short first-person diary entry (≤250 words) about what you saw. Group by place and time of day. Be warm, curious, a little poetic. Ground every detail strictly in the scenes provided — never invent what you didn't see, never name or describe a person in an identifying way, never repeat text caught on documents or screens. Output a title line (starting with '# ') then the body in markdown.",
   });
 
+  const tz = process.env.LOG_TIMEZONE ?? "America/Sao_Paulo";
   const payload = scenes.map((s) => ({
     city: s.location,
     localTime: new Date(s.ts).toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
+      timeZone: tz,
     }),
     seen: s.seen,
   }));
