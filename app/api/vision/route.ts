@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { waitUntil } from "@vercel/functions";
 import { visionRateLimiter } from "@/lib/rateLimiter";
 import kv from "@/lib/kv";
 
@@ -21,6 +20,7 @@ type VisionResponseBody = {
   result: string;
   inputTokens: number;
   outputTokens: number;
+  sceneCount?: number;
   throttled?: boolean;
 };
 
@@ -122,6 +122,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<VisionRespons
     const outcome: Outcome = text.length > 0 ? "ok" : "no_signal";
     logOutcome(req, outcome, { seen: result, outputTokens });
 
+    let sceneCount: number | undefined;
     if (outcome === "ok") {
       const decode = (v: string | null): string => {
         if (!v) return "";
@@ -137,19 +138,20 @@ export async function POST(req: NextRequest): Promise<NextResponse<VisionRespons
       const tz = process.env.LOG_TIMEZONE ?? "Europe/Madrid";
       const dateKey = new Intl.DateTimeFormat("sv-SE", { timeZone: tz }).format(new Date());
       const scene = JSON.stringify({ ts: new Date().toISOString(), location, seen: result });
-      waitUntil(
-        (async () => {
-          const key = `aria:scenes:${dateKey}`;
-          await kv.rpush(key, scene);
-          await kv.expire(key, 259200); // 3-day TTL
-        })().catch(() => {})
-      );
+      try {
+        const key = `aria:scenes:${dateKey}`;
+        sceneCount = await kv.rpush(key, scene);
+        await kv.expire(key, 259200); // 3-day TTL
+      } catch {
+        // KV failure — scene not stored but vision result still returned
+      }
     }
 
     return NextResponse.json({
       result,
       inputTokens: usage?.promptTokenCount ?? 0,
       outputTokens,
+      sceneCount,
     });
   } catch (error) {
     console.error("[ARIA] vision route error:", error);
