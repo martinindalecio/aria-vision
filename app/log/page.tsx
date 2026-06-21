@@ -90,9 +90,7 @@ export default async function LogPage() {
 
         {/* Footer */}
         <div className="mt-16 border-t border-hud-dark pt-6 text-xs opacity-30">
-          <div className="tracking-widest">
-            AUTO-PUBLISHED DAILY · TEXT ONLY · NO PHOTOS
-          </div>
+          <div className="tracking-widest">AUTO-PUBLISHED DAILY</div>
         </div>
       </div>
     </div>
