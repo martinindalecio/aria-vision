@@ -12,11 +12,11 @@ type HUDOverlayProps = {
   onToggleLang: () => void;
 };
 
-// Split a bilingual line "[FIELD|ES]: en_part / es_part" into the chosen language.
-// Lines without " / " (SIGNAL LOST, ARIA ONLINE, etc.) are returned unchanged.
-function parseLine(line: string, lang: Lang): string {
+// Each Gemini response is a multi-line block. Parse each line individually
+// so we don't accidentally split the whole block on the first " / " found.
+function parseSingleLine(line: string, lang: Lang): string {
   const slashIdx = line.indexOf(" / ");
-  if (slashIdx === -1) return line;
+  if (slashIdx === -1) return line; // no bilingual separator — return unchanged
 
   const enPart = line.slice(0, slashIdx);
   const esPart = line.slice(slashIdx + 3);
@@ -28,6 +28,14 @@ function parseLine(line: string, lang: Lang): string {
   const labelMatch = enPart.match(/^(\[[A-Z_]+)\|ES\]:/);
   if (labelMatch) return `${labelMatch[1]}]: ${esPart}`;
   return esPart;
+}
+
+function parseBlock(block: string, lang: Lang): string {
+  return block
+    .split("\n")
+    .map((l) => parseSingleLine(l.trim(), lang))
+    .filter((l) => l.length > 0)
+    .join("\n");
 }
 
 export default function HUDOverlay({
@@ -114,7 +122,7 @@ export default function HUDOverlay({
                 key={`${index}-${line}`}
                 className={`aria-line typewriter whitespace-pre-wrap break-words text-sm leading-snug ${ageClass}`}
               >
-                {parseLine(line, lang)}
+                {parseBlock(line, lang)}
               </p>
             );
           })}
