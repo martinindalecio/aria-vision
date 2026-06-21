@@ -1,12 +1,34 @@
 "use client";
 
+import type { Lang } from "@/lib/i18n";
+
 type HUDOverlayProps = {
   lines: string[];
   isLoading: boolean;
   sceneCount: number;
   isPaused: boolean;
   isOnline: boolean;
+  lang: Lang;
+  onToggleLang: () => void;
 };
+
+// Split a bilingual line "[FIELD|ES]: en_part / es_part" into the chosen language.
+// Lines without " / " (SIGNAL LOST, ARIA ONLINE, etc.) are returned unchanged.
+function parseLine(line: string, lang: Lang): string {
+  const slashIdx = line.indexOf(" / ");
+  if (slashIdx === -1) return line;
+
+  const enPart = line.slice(0, slashIdx);
+  const esPart = line.slice(slashIdx + 3);
+
+  if (lang === "en") {
+    return enPart.replace(/\|ES\]/g, "]");
+  }
+  // ES: reconstruct as [FIELD]: es_value
+  const labelMatch = enPart.match(/^(\[[A-Z_]+)\|ES\]:/);
+  if (labelMatch) return `${labelMatch[1]}]: ${esPart}`;
+  return esPart;
+}
 
 export default function HUDOverlay({
   lines,
@@ -14,6 +36,8 @@ export default function HUDOverlay({
   sceneCount,
   isPaused,
   isOnline,
+  lang,
+  onToggleLang,
 }: HUDOverlayProps) {
   const visibleLines = lines.slice(-3);
 
@@ -43,7 +67,19 @@ export default function HUDOverlay({
             )}
           </span>
 
-          <span className="glow whitespace-nowrap">{sceneCount} SEEN TODAY</span>
+          <span className="flex items-center gap-2 whitespace-nowrap">
+            <span className="glow">{sceneCount} SEEN TODAY</span>
+            <span className="opacity-30">·</span>
+            <button
+              onClick={onToggleLang}
+              className="tracking-widest transition-opacity"
+              aria-label="toggle language"
+            >
+              <span className={lang === "en" ? "glow" : "opacity-40"}>[EN]</span>
+              <span className="opacity-20 mx-0.5">|</span>
+              <span className={lang === "es" ? "glow" : "opacity-40"}>[ES]</span>
+            </button>
+          </span>
         </div>
       </div>
 
@@ -58,7 +94,7 @@ export default function HUDOverlay({
           </span>
         )}
         <a
-          href="/log"
+          href={`/log?lang=${lang}`}
           className="pointer-events-auto absolute bottom-2 right-3 text-xs text-hud-dim transition-colors hover:text-hud"
         >
           [LOG]
@@ -78,7 +114,7 @@ export default function HUDOverlay({
                 key={`${index}-${line}`}
                 className={`aria-line typewriter whitespace-pre-wrap break-words text-sm leading-snug ${ageClass}`}
               >
-                {line}
+                {parseLine(line, lang)}
               </p>
             );
           })}

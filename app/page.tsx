@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import CameraView, { type CameraViewHandle } from "@/components/CameraView";
 import HUDOverlay from "@/components/HUDOverlay";
+import LangPrompt from "@/components/LangPrompt";
 import { motionDetector } from "@/lib/motionDetector";
+import { parseLang, type Lang } from "@/lib/i18n";
 
 const MAX_LINES = 3;
 const CAPTURE_TICK_MS = 100;
@@ -17,7 +19,20 @@ type VisionResponse = {
   sceneCount?: number;
 };
 
+function safeLsGet(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+
+function safeLsSet(key: string, value: string): void {
+  try { localStorage.setItem(key, value); } catch { /* private browsing — silent */ }
+}
+
 export default function Home() {
+  // undefined = reading localStorage (avoid first-paint flash for returning users)
+  // null = localStorage read, no lang stored → show LangPrompt
+  // Lang = ready
+  const [lang, setLang] = useState<Lang | null | undefined>(undefined);
+
   const [lines, setLines] = useState<string[]>([BOOT_LINE]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
@@ -29,6 +44,12 @@ export default function Home() {
   const pausedRef = useRef<boolean>(false);
   const inFlightRef = useRef<boolean>(false);
   const throttleUntilRef = useRef<number>(0);
+
+  // Read stored language preference on mount
+  useEffect(() => {
+    const stored = safeLsGet("aria:lang");
+    setLang(stored ? parseLang(stored) : null);
+  }, []);
 
   const pushLine = useCallback((text: string): void => {
     setLines((prev) => {
@@ -44,6 +65,19 @@ export default function Home() {
       return !prev;
     });
   }, []);
+
+  const toggleLang = useCallback((): void => {
+    setLang((prev) => {
+      const next: Lang = prev === "es" ? "en" : "es";
+      safeLsSet("aria:lang", next);
+      return next;
+    });
+  }, []);
+
+  function handleLangSelect(chosen: Lang): void {
+    safeLsSet("aria:lang", chosen);
+    setLang(chosen);
+  }
 
   const runCapture = useCallback(async (): Promise<void> => {
     if (pausedRef.current || inFlightRef.current) return;
@@ -63,8 +97,6 @@ export default function Home() {
         body: JSON.stringify({ imageBase64: frame, prevContext }),
       });
       if (res.status === 429) {
-        // Global rate limit hit — back off for the server-suggested window and
-        // show a calm "queued" state instead of a connection error.
         const retryAfter = Number(res.headers.get("Retry-After")) || 4;
         throttleUntilRef.current = Date.now() + retryAfter * 1000;
         if (linesRef.current[linesRef.current.length - 1] !== THROTTLE_LINE) {
@@ -89,7 +121,7 @@ export default function Home() {
     }
   }, [pushLine]);
 
-  // Track connectivity.
+  // Track connectivity
   useEffect(() => {
     setIsOnline(navigator.onLine);
     const goOnline = (): void => setIsOnline(true);
@@ -102,13 +134,28 @@ export default function Home() {
     };
   }, []);
 
-  // Capture loop — 100ms tick, MotionDetector enforces the real rate limits.
+  // Capture loop — only starts after lang is chosen
   useEffect(() => {
+    if (!lang) return;
     const captureTick = window.setInterval(() => {
       void runCapture();
     }, CAPTURE_TICK_MS);
     return () => window.clearInterval(captureTick);
-  }, [runCapture]);
+  }, [runCapture, lang]);
+
+  // Loading: lang not yet read from localStorage — render nothing (imperceptible)
+  if (lang === undefined) {
+    return <main className="h-screen w-screen overflow-hidden bg-black" />;
+  }
+
+  // New user: lang not chosen → boot screen
+  if (lang === null) {
+    return (
+      <main className="h-screen w-screen overflow-hidden bg-black">
+        <LangPrompt onSelect={handleLangSelect} />
+      </main>
+    );
+  }
 
   return (
     <main className="h-screen w-screen overflow-hidden bg-black">
@@ -119,6 +166,8 @@ export default function Home() {
         sceneCount={sceneCount}
         isPaused={isPaused}
         isOnline={isOnline}
+        lang={lang}
+        onToggleLang={toggleLang}
       />
     </main>
   );

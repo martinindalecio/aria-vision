@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MODEL = "gemini-3.1-flash-lite";
-const MAX_TOKENS = 80;
+const MAX_TOKENS = 200;
 
 type VisionRequestBody = {
   imageBase64?: string;
@@ -18,6 +18,7 @@ type VisionRequestBody = {
 
 type VisionResponseBody = {
   result: string;
+  description_es?: string;
   inputTokens: number;
   outputTokens: number;
   sceneCount?: number;
