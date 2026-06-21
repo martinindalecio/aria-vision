@@ -1,3 +1,4 @@
+<!-- /autoplan restore point: /Users/martingalaz/.gstack/projects/visualappterminator/docs-plan-spanish-and-admin-autoplan-restore-20260621-101839.md -->
 # Plan — Spanish HUD + `/log` + owner admin dashboard
 
 Two independent workstreams. Decisions locked below. UI follows `DESIGN.md`
@@ -162,3 +163,67 @@ separate files — but F ships after B to reuse the toggle component and i18n.ts
 ## Out of scope
 - Full app i18n framework (next-intl) — revisit only if scope grows beyond 6 strings + vision.
 - Extending the 3-day scene TTL — kept as-is.
+
+---
+
+<!-- AUTONOMOUS DECISION LOG -->
+## Decision Audit Trail
+
+| # | Phase | Decision | Classification | Principle | Rationale | Rejected |
+|---|-------|----------|----------------|-----------|-----------|---------|
+| 1 | CEO | Raise MAX_TOKENS 80→200 for PR F | Mechanical | P1 Completeness | 80 tokens cannot fit bilingual JSON; truncation cascades to SIGNAL LOST | Keep at 80 |
+| 2 | CEO | Fix LOG_TIMEZONE default to `America/Sao_Paulo` in all 3 files | Mechanical | P3 Pragmatic | vision/route.ts and cron/route.ts both default to Europe/Madrid; narrative.ts defaults to Sao Paulo — inconsistency causes wrong date key | Leave inconsistent |
+| 3 | CEO | reviewNarrative must return `{verdict, clean_en, clean_es, reason}` in PR A | Mechanical | P1 Completeness | Privacy review must clean BOTH languages; current function only cleans English | Review only EN |
+| 4 | CEO | Add `prompts/system.md` change to PR F scope | Mechanical | P2 Boil lakes | PR F cannot work without updating the system prompt to output bilingual format | Leave system prompt as-is |
+| 5 | CEO | Defer test suite | Mechanical | P3 Pragmatic | No tests exist; solo portfolio project; adding tests now is unrelated scope | — |
+| 6 | CEO — Premise Gate | Bilingual Terminator format (A): labels translated side-by-side, first-visit lang prompt stores to localStorage['aria:lang'] | User decision | User | Option A preserves machine aesthetic; adds first-visit HUD language selection screen | B (natural language), C (EN-only HUD) |
+| 7 | Design | Language prompt = inline boot screen before camera, not modal | Mechanical | P5 | Preserves ARIA boot aesthetic; modal breaks the machine-is-already-watching feel | Full-screen modal |
+| 8 | Design | HUD toggle: `· [EN|ES]` compact inline after scene count | Mechanical | P5 | Minimal chrome addition; consistent with Terminator aesthetic | Separate toggle row |
+| 9 | Design | /log toggle: `[EN] · [ES]` in header, active lang glows | Mechanical | P5 | Same mono pattern as other /log chrome | Dropdown |
+| 10 | Design | Bilingual format: `[FIELD\|ES]: en / es` pipe notation | Mechanical | P1 | Parseable, minimal token overhead, consistent with Terminator labels | JSON wrapper |
+| 11 | Design | Private browsing / no-localStorage: silent default EN | Mechanical | P3 | No crash, sensible default | Block or error |
+| 12 | Eng | Bilingual parse: split on ` / `, fallback to full line if no separator | Mechanical | P3 | Prevents SIGNAL LOST on Gemini format deviation; degrades to EN not crash | Error on bad format |
+| 13 | Eng | Camera stream does not start until language is selected on first visit | Mechanical | P1 | Prevents English-only frames from flowing during language selection | Start immediately |
+| 14 | Eng | generateNarrative: JSON.parse bilingual output with try/catch → hold fallback | Mechanical | P1 | Same pattern as reviewNarrative; safe default | Let JSON error propagate |
+| 15 | Eng | reviewNarrative: validate both clean_en + clean_es; missing either = hold | Mechanical | P1 | Privacy: partial bilingual clean is not safe to publish | Accept partial |
+| 16 | Eng | Defer unit tests | Mechanical | P3 | Consistent with existing project; solo portfolio | Add tests now |
+| 17 | DX | Admin shows `[KV CONNECTION FAILED — CHECK ENV VARS]` in HUD chrome style | Mechanical | P1 | Prevents silent empty screen when KV token is missing in admin project | Silent empty |
+| 18 | DX | Admin held-post list shows `[NO HELD POSTS]` empty state | Mechanical | P5 | Consistent with HUD/log empty state patterns | Omit empty state |
+
+---
+
+## GSTACK REVIEW REPORT
+
+### /autoplan Summary
+**Date:** 2026-06-21 | **Branch:** docs/plan-spanish-and-admin | **Voices:** Claude subagent only (Codex unavailable)
+
+**Status: APPROVED** (pending user confirmation below)
+
+### Findings Resolved
+
+| # | Finding | Severity | Resolution |
+|---|---|---|---|
+| 1 | MAX_TOKENS=80 insufficient for bilingual JSON | CRITICAL | Raise to 200 in PR F |
+| 2 | System prompt format unspecified for PR F | HIGH | Option A (bilingual Terminator, pipe notation) — user confirmed |
+| 3 | LOG_TIMEZONE default inconsistency across 3 files | MEDIUM | Fix to Sao_Paulo in PR A |
+| 4 | reviewNarrative must clean both languages | HIGH | Return {clean_en, clean_es}; hold if either missing |
+| 5 | Camera should not start before language selection | HIGH | lang prompt gates camera boot |
+| 6 | generateNarrative bilingual JSON parse safety | HIGH | try/catch → hold fallback |
+| 7 | Private browsing localStorage fallback | MEDIUM | try/catch, default EN |
+| 8 | Admin KV error state | MEDIUM | [KV CONNECTION FAILED] error boundary |
+
+### PR Sequence (updated)
+| PR | Key additions from review |
+|---|---|
+| A | LOG_TIMEZONE fix; bilingual generate + review; 4-field KV storage |
+| B | /log toggle `[EN]·[ES]`; ?lang= query param; LangToggle component |
+| F | MAX_TOKENS=200; bilingual system prompt; LangPrompt boot screen; HUD toggle; parse fallback |
+| C | Separate Vercel project; Auth gated; KV error boundary |
+| D | Admin dashboard content; empty states |
+| E | Optional retention rollup |
+
+### Decision Audit: 18 decisions (17 auto, 1 user)
+See Decision Audit Trail table above.
+
+### Test Plan
+Written to: `~/.gstack/projects/visualappterminator/docs-plan-spanish-and-admin-test-plan.md`
