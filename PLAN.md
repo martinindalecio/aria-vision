@@ -1,0 +1,126 @@
+# Plan — Spanish `/log` + owner admin dashboard
+
+Two independent workstreams. Decisions locked below. UI follows `DESIGN.md`
+(Phosphor Terminal: IBM Plex Mono chrome, phosphor green; serif near-white for
+ARIA's prose).
+
+## Decisions locked
+- **D1 = C — Vercel Authentication** for the admin (deployment protection, edge-enforced).
+- **D2 = B — single Gemini call** returns both English + Spanish narrative.
+
+---
+
+## Workstream 1 — Spanish on `/log`
+
+Two kinds of text, two solutions:
+
+### 1a. Static UI chrome (fixed strings)
+`DAILY LOG`, `what i saw through strangers' cameras`, `BACK TO HUD`,
+`AUTO-PUBLISHED DAILY`, `N scenes ·`. ~6 strings.
+
+- **Approach:** a 20-line `lib/i18n.ts` dictionary keyed by `lang` (`en` | `es`).
+  No library — next-intl/i18next is overkill for 6 strings. next-intl is the
+  migration path only if the whole app later needs localization.
+
+### 1b. The narrative (AI-generated, dynamic)
+Localization libraries cannot touch this — they translate fixed strings, not
+content a model generates daily. Translation happens **at cron time** (D2 = B:
+one call, both languages).
+
+Pipeline (stays at 2 Gemini calls/day — same quota cost as today):
+```
+generate → JSON {title_en, body_en, title_es, body_es}     (1 call)
+review   → JSON {verdict, clean_en, clean_es, reason}        (1 call)
+store    → aria:post:<date> = {title_en, body_md_en,
+                               title_es, body_md_es,
+                               stats, published_at}
+```
+
+**Privacy-review correctness (the D2=B caveat):** because Spanish is generated
+alongside English rather than translated from the cleaned English, the review
+step MUST clean BOTH fields and apply identical redactions across languages. A
+leak slipping through in `es` is as bad as in `en`. The reviewer holds if either
+language is unsafe.
+
+Files touched:
+- `lib/narrative.ts` — `generateNarrative` returns the 4-field JSON; `reviewNarrative`
+  takes both languages, returns `clean_en` / `clean_es`. Keep the `LOG_TIMEZONE`
+  localTime fix and the `Title:`-echo strip (apply to both bodies).
+- `app/api/cron/daily-log/route.ts` — step 4/5/6 store both language fields.
+- One-time backfill: translate the 1–2 existing English-only posts (cheap).
+
+### 1c. `/log` UI — EN/ES toggle
+- Server component ships both languages in the payload; a small client toggle
+  flips chrome + narrative instantly (no refetch). Optional `?lang=es` read
+  server-side for shareable language links.
+- Backward compat: render `post.body_md_en ?? post.body_md` and
+  `post.title_en ?? post.title` so nothing breaks before the backfill runs.
+- Toggle styled as machine chrome per `DESIGN.md` (mono, green, wide tracking).
+
+---
+
+## Workstream 2 — Owner admin dashboard
+
+### Architecture (consequence of D1 = C)
+Vercel Authentication protects a **whole deployment**, not a path. `/` and `/log`
+must stay public, so the admin runs as a **separate Vercel project** that reads
+the same Upstash KV (same `KV_REST_API_URL` / `KV_REST_API_TOKEN`):
+
+- Separate small Next app (sibling repo, or a second project off this repo) at
+  e.g. `admin.aria.martingalaz.com`.
+- Vercel Authentication ON for that project → only Martin's Vercel login gets in,
+  enforced at the edge before any code runs.
+- Admin code never ships in the public bundle. No public `/admin` route exists.
+- Reads KV directly in server components — **no `/api/admin/*` JSON endpoints**
+  (the deleted `/api/debug` leaked precisely because it was a fetchable endpoint
+  behind a shared secret; with no endpoint there is nothing to attack but the
+  edge gate).
+
+**Verify before building:** confirm production-level Vercel Authentication is
+available on the current Vercel plan. If path-scoping within one app is ever
+preferred over a separate project, the alternatives are (a) middleware auth
+(was D1 = B), or (b) "Sign in with Vercel" as an in-app OAuth provider — both
+keep one app but move the gate into code.
+
+### What the dashboard shows (all already in KV)
+- Scenes per day: local time (`LOG_TIMEZONE`), coarse location, what ARIA saw.
+- Daily tallies: total scenes, unique locations/countries, sessions.
+- **Held posts** (`aria:held:<date>`): privacy-flagged, with review/release.
+- Published posts (EN/ES).
+
+### Security checklist
+- Auth enforced by Vercel at the edge (no app login surface to attack).
+- Admin project `noindex`, not in any sitemap.
+- Secrets in env only; KV token never sent to the client.
+- No admin JSON endpoints — server components only.
+
+### Retention caveat
+Scenes carry a 3-day TTL (decision: keep it). The dashboard therefore shows a
+rolling 3-day window. Longer history needs a small daily rollup into a no-TTL
+key — separate, optional (PR E).
+
+### Ethics note (why "ultra-secure" is correct)
+This data is about other people (strangers' cameras + coarse location). The
+3-day TTL and the existing privacy review are load-bearing safeguards, not
+incidental. Keep that framing through the build.
+
+---
+
+## PR sequence (merge-gated, each independently shippable)
+
+| PR | Title | Depends on | Notes |
+|----|-------|-----------|-------|
+| **A** | `feat: bilingual narrative generation (cron + storage)` | — | `lib/narrative.ts` + cron store both langs; backfill existing posts. Page unaffected via `?? body_md` fallback. |
+| **B** | `feat: /log EN/ES toggle + UI dictionary` | A | `lib/i18n.ts` chrome dict + client toggle flipping chrome and narrative. |
+| **C** | `feat: admin project shell + Vercel Authentication` | — | Stand up separate protected project reading KV; minimal health view. Parallel to A/B. |
+| **D** | `feat: admin dashboard (scenes, tallies, held-post review)` | C | The real dashboard content. |
+| **E** *(optional)* | `feat: scene retention rollup for admin history` | D | Only if >3-day history is wanted. |
+
+Dependency order: A → B, C → D. A and C are independent (can run in parallel).
+
+---
+
+## Out of scope
+- Localizing the vision HUD (`/`) — explicitly English-only for now.
+- Full app i18n framework (next-intl) — revisit only if scope grows.
+- Extending the 3-day scene TTL — kept as-is.
