@@ -216,9 +216,9 @@ export default async function AdminPage() {
                               {new Date(scene.ts).toLocaleTimeString("en-US", {
                                 hour: "2-digit",
                                 minute: "2-digit",
-                                timeZone: process.env.LOG_TIMEZONE ?? "America/Sao_Paulo",
+                                timeZone: process.env.LOG_TIMEZONE ?? "America/Los_Angeles",
                               })}
-                              {" "}·{" "}
+                              {" PT "}·{" "}
                               {scene.location}
                               {" "}—{" "}
                             </span>
