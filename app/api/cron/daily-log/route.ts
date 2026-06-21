@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 function getYesterdayKey(): string {
-  const tz = process.env.LOG_TIMEZONE ?? "Europe/Madrid";
+  const tz = process.env.LOG_TIMEZONE ?? "America/Sao_Paulo";
   const now = new Date();
   const todayLocal = new Intl.DateTimeFormat("sv-SE", { timeZone: tz }).format(now);
   const todayMs = new Date(todayLocal).getTime();
@@ -55,29 +55,48 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const stats: Stats = { sessions: scenes.length, cities, countries };
 
     // Step 4: generate narrative
-    const { title, body_md } = await generateNarrative(scenes, stats);
+    const narrative = await generateNarrative(scenes, stats);
+
+    if (narrative.hold) {
+      await kv.set(`aria:held:${dateKey}`, {
+        title: "[NARRATIVE PARSE ERROR]",
+        body_md: "",
+        reason: narrative.reason,
+      });
+      return NextResponse.json({ message: `held: ${narrative.reason}`, dateKey });
+    }
+
+    const { title_en, body_en, title_es, body_es } = narrative;
 
     // Step 5: privacy review
-    const review = await reviewNarrative({ title, body_md });
+    const review = await reviewNarrative({ title_en, body_en, title_es, body_es });
 
     if (review.verdict === "hold") {
       await kv.set(`aria:held:${dateKey}`, {
-        title,
-        body_md: review.clean_body || body_md,
+        title_en,
+        title_es,
+        body_md_en: review.clean_en || body_en,
+        body_md_es: review.clean_es || body_es,
+        // backward compat
+        title: title_en,
+        body_md: review.clean_en || body_en,
         reason: review.reason,
       });
       return NextResponse.json({ message: `held: ${review.reason}`, dateKey });
     }
 
-    // Step 6: publish
-    const rawBody = (review.clean_body || body_md).trim();
-    const cleanedBody = rawBody
-      .replace(/^#+\s+.+\n*/m, "")
-      .replace(/^Title:\s+.+\n*/im, "")
-      .trim();
+    // Step 6: publish — strip any stray title echo Gemini may include in body
+    const strip = (s: string) =>
+      s.trim().replace(/^#+\s+.+\n*/m, "").replace(/^Title:\s+.+\n*/im, "").trim();
+
     const post = {
-      title,
-      body_md: cleanedBody,
+      title_en,
+      body_md_en: strip(review.clean_en),
+      title_es,
+      body_md_es: strip(review.clean_es),
+      // backward compat for existing log readers
+      title: title_en,
+      body_md: strip(review.clean_en),
       stats,
       published_at: new Date().toISOString(),
     };
@@ -85,7 +104,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     await kv.set(`aria:post:${dateKey}`, post);
     await kv.zadd("aria:posts", { score, member: dateKey });
 
-    return NextResponse.json({ message: "published", dateKey, title });
+    return NextResponse.json({ message: "published", dateKey, title: title_en });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[ARIA-CRON] failed for ${dateKey}:`, msg);

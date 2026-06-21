@@ -5,6 +5,12 @@ import LogPost from "@/components/LogPost";
 export const revalidate = 300;
 
 type Post = {
+  // bilingual fields (present on posts generated after PR A)
+  title_en?: string;
+  body_md_en?: string;
+  title_es?: string;
+  body_md_es?: string;
+  // legacy fields (always present — EN copy kept for backward compat)
   title: string;
   body_md: string;
   stats: { sessions: number; cities: string[]; countries: string[] };
@@ -77,14 +83,14 @@ export default async function LogPage() {
                   >
                     {post.date}
                   </a>
-                  <h2 className="glow text-base tracking-wide">{post.title}</h2>
+                  <h2 className="glow text-base tracking-wide">{post.title_en ?? post.title}</h2>
                   <div className="mt-1 text-xs opacity-30">
                     {post.stats.sessions} scenes ·{" "}
                     {post.stats.cities.join(", ")}
                   </div>
                 </div>
                 <div className="text-sm leading-relaxed opacity-80">
-                  <LogPost body={post.body_md} />
+                  <LogPost body={post.body_md_en ?? post.body_md} />
                 </div>
               </article>
             ))}
