@@ -34,7 +34,10 @@ export default function AdminLogin() {
   }
 
   return (
-    <main className="flex h-screen w-screen items-center justify-center bg-black font-mono">
+    <main
+      className="flex w-screen items-center justify-center bg-black font-mono"
+      style={{ height: "100vh", overflowY: "auto" }}
+    >
       <div className="w-full max-w-sm border border-hud-dark p-8">
         <div className="mb-6">
           <div className="mb-1 text-xs tracking-widest opacity-50">ARIA VISION</div>

@@ -128,7 +128,10 @@ export default async function AdminPage() {
   }
 
   return (
-    <main className="min-h-screen bg-black font-mono" style={{ color: "var(--green)" }}>
+    <main
+      className="w-full bg-black font-mono"
+      style={{ color: "var(--green)", height: "100vh", overflowY: "auto" }}
+    >
       <div className="mx-auto max-w-3xl px-6 py-10">
 
         {/* Header */}
