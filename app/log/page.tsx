@@ -1,6 +1,8 @@
 import Link from "next/link";
 import kv from "@/lib/kv";
 import LogPost from "@/components/LogPost";
+import LangToggle from "@/components/LangToggle";
+import { parseLang, t, type Lang } from "@/lib/i18n";
 
 export const revalidate = 300;
 
@@ -33,7 +35,22 @@ async function getPosts(): Promise<Array<Post & { date: string }>> {
   }
 }
 
-export default async function LogPage() {
+function pickTitle(post: Post, lang: Lang): string {
+  if (lang === "es") return post.title_es ?? post.title_en ?? post.title;
+  return post.title_en ?? post.title;
+}
+
+function pickBody(post: Post, lang: Lang): string {
+  if (lang === "es") return post.body_md_es ?? post.body_md_en ?? post.body_md;
+  return post.body_md_en ?? post.body_md;
+}
+
+export default async function LogPage({
+  searchParams,
+}: {
+  searchParams: { lang?: string };
+}) {
+  const lang = parseLang(searchParams.lang);
   const posts = await getPosts();
 
   return (
@@ -54,23 +71,22 @@ export default async function LogPage() {
           </div>
           <h1 className="glow mb-1 text-xl tracking-widest">DAILY LOG</h1>
           <div className="text-xs opacity-40">
-            what i saw through strangers&#39; cameras
+            {t("subtitle", lang)}
           </div>
+          <LangToggle lang={lang} />
           <Link
             href="/"
             className="mt-4 inline-block text-xs tracking-widest opacity-40 transition-opacity hover:opacity-80"
           >
-            ← BACK TO HUD
+            {t("backToHud", lang)}
           </Link>
         </div>
 
         {/* Posts */}
         {posts.length === 0 ? (
           <div className="py-16 text-center text-sm opacity-40">
-            <div className="mb-2 tracking-widest">NO ENTRIES YET</div>
-            <div className="text-xs">
-              ARIA will publish her first diary at 06:00 UTC
-            </div>
+            <div className="mb-2 tracking-widest">{t("emptyHeading", lang)}</div>
+            <div className="text-xs">{t("emptySub", lang)}</div>
           </div>
         ) : (
           <div className="space-y-12">
@@ -83,14 +99,14 @@ export default async function LogPage() {
                   >
                     {post.date}
                   </a>
-                  <h2 className="glow text-base tracking-wide">{post.title_en ?? post.title}</h2>
+                  <h2 className="glow text-base tracking-wide">{pickTitle(post, lang)}</h2>
                   <div className="mt-1 text-xs opacity-30">
-                    {post.stats.sessions} scenes ·{" "}
+                    {post.stats.sessions} {t("scenes", lang)} ·{" "}
                     {post.stats.cities.join(", ")}
                   </div>
                 </div>
                 <div className="text-sm leading-relaxed opacity-80">
-                  <LogPost body={post.body_md_en ?? post.body_md} />
+                  <LogPost body={pickBody(post, lang)} />
                 </div>
               </article>
             ))}
@@ -99,7 +115,7 @@ export default async function LogPage() {
 
         {/* Footer */}
         <div className="mt-16 border-t border-hud-dark pt-6 text-xs opacity-30">
-          <div className="tracking-widest">AUTO-PUBLISHED DAILY</div>
+          <div className="tracking-widest">{t("footer", lang)}</div>
         </div>
       </div>
     </div>
