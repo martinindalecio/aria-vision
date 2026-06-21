@@ -69,11 +69,14 @@ export default async function LogPage() {
         ) : (
           <div className="space-y-12">
             {posts.map((post) => (
-              <article key={post.date}>
+              <article key={post.date} id={post.date}>
                 <div className="mb-4 border-b border-hud-dark pb-2">
-                  <div className="mb-1 text-xs tracking-widest opacity-40">
+                  <a
+                    href={`#${post.date}`}
+                    className="mb-1 block text-xs tracking-widest opacity-40 transition-opacity hover:opacity-70"
+                  >
                     {post.date}
-                  </div>
+                  </a>
                   <h2 className="glow text-base tracking-wide">{post.title}</h2>
                   <div className="mt-1 text-xs opacity-30">
                     {post.stats.sessions} scenes ·{" "}
