@@ -4,11 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import CameraView, { type CameraViewHandle } from "@/components/CameraView";
 import HUDOverlay from "@/components/HUDOverlay";
 import { motionDetector } from "@/lib/motionDetector";
-import { costTracker, type TokenTotals } from "@/lib/costTracker";
 
 const MAX_LINES = 3;
 const CAPTURE_TICK_MS = 100;
-const COST_REFRESH_MS = 2000;
 const BOOT_LINE = "[ARIA ONLINE — AWAITING VISUAL FEED]";
 const THROTTLE_LINE = "[ARIA THROTTLED — QUEUED]";
 
@@ -16,6 +14,7 @@ type VisionResponse = {
   result: string;
   inputTokens: number;
   outputTokens: number;
+  sceneCount?: number;
 };
 
 export default function Home() {
@@ -23,8 +22,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(true);
-  const [cost, setCost] = useState<string>("$0.0000");
-  const [tokens, setTokens] = useState<TokenTotals>({ input: 0, output: 0 });
+  const [sceneCount, setSceneCount] = useState<number>(0);
 
   const cameraRef = useRef<CameraViewHandle>(null);
   const linesRef = useRef<string[]>([BOOT_LINE]);
@@ -79,7 +77,7 @@ export default function Home() {
         throw new Error(`vision API responded ${res.status}`);
       }
       const data = (await res.json()) as VisionResponse;
-      costTracker.addUsage(data.inputTokens, data.outputTokens);
+      if (data.sceneCount !== undefined) setSceneCount(data.sceneCount);
       pushLine(data.result);
       setIsOnline(true);
     } catch {
@@ -91,12 +89,9 @@ export default function Home() {
     }
   }, [pushLine]);
 
-  // Hydrate persisted totals + track connectivity.
+  // Track connectivity.
   useEffect(() => {
-    setCost(costTracker.getTotal());
-    setTokens(costTracker.getTokens());
     setIsOnline(navigator.onLine);
-
     const goOnline = (): void => setIsOnline(true);
     const goOffline = (): void => setIsOnline(false);
     window.addEventListener("online", goOnline);
@@ -107,22 +102,12 @@ export default function Home() {
     };
   }, []);
 
-  // Capture loop (100ms tick — MotionDetector enforces the real rate limits)
-  // and the 2s cost display refresh.
+  // Capture loop — 100ms tick, MotionDetector enforces the real rate limits.
   useEffect(() => {
     const captureTick = window.setInterval(() => {
       void runCapture();
     }, CAPTURE_TICK_MS);
-
-    const costTick = window.setInterval(() => {
-      setCost(costTracker.getTotal());
-      setTokens(costTracker.getTokens());
-    }, COST_REFRESH_MS);
-
-    return () => {
-      window.clearInterval(captureTick);
-      window.clearInterval(costTick);
-    };
+    return () => window.clearInterval(captureTick);
   }, [runCapture]);
 
   return (
@@ -131,8 +116,7 @@ export default function Home() {
       <HUDOverlay
         lines={lines}
         isLoading={isLoading}
-        cost={cost}
-        tokens={tokens}
+        sceneCount={sceneCount}
         isPaused={isPaused}
         isOnline={isOnline}
       />

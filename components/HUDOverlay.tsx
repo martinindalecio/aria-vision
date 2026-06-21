@@ -3,8 +3,7 @@
 type HUDOverlayProps = {
   lines: string[];
   isLoading: boolean;
-  cost: string;
-  tokens: { input: number; output: number };
+  sceneCount: number;
   isPaused: boolean;
   isOnline: boolean;
 };
@@ -12,8 +11,7 @@ type HUDOverlayProps = {
 export default function HUDOverlay({
   lines,
   isLoading,
-  cost,
-  tokens,
+  sceneCount,
   isPaused,
   isOnline,
 }: HUDOverlayProps) {
@@ -31,10 +29,7 @@ export default function HUDOverlay({
       {/* ── Status bar ───────────────────────────────────────── */}
       <div className="pointer-events-auto absolute inset-x-0 top-0 px-4 pt-4">
         <div className="hud-meta relative flex items-start justify-between text-xs">
-          <span className="glow whitespace-nowrap">
-            IN: {tokens.input.toLocaleString("en-US")} | OUT:{" "}
-            {tokens.output.toLocaleString("en-US")}
-          </span>
+          <span />
 
           <span className="absolute left-1/2 top-0 -translate-x-1/2 whitespace-nowrap tracking-widest">
             {isPaused ? (
@@ -48,7 +43,7 @@ export default function HUDOverlay({
             )}
           </span>
 
-          <span className="glow whitespace-nowrap">{cost}</span>
+          <span className="glow whitespace-nowrap">{sceneCount} SEEN TODAY</span>
         </div>
       </div>
 
