@@ -6,6 +6,7 @@
   --green: #00ff41;
   --green-dim: #00aa2a;
   --green-dark: #003310;
+  --dust: #d4ddd6;
 }
 
 @media screen {
@@ -68,18 +69,19 @@ body::-webkit-scrollbar {
   }
 }
 
-/* ── Typewriter reveal for new ARIA lines ─────────────────── */
+/* ── Fade reveal for new ARIA lines (works on wrapped text) ── */
 .typewriter {
-  overflow: hidden;
-  animation: typewriter 0.3s steps(20, end);
+  animation: fadeReveal 0.3s ease-out;
 }
 
-@keyframes typewriter {
+@keyframes fadeReveal {
   from {
-    width: 0%;
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
   }
   to {
-    width: 100%;
+    opacity: 1;
+    clip-path: inset(0 0% 0 0);
   }
 }
 
@@ -133,6 +135,26 @@ body::-webkit-scrollbar {
   right: 0.4rem;
   border-bottom: 2px solid var(--green-dim);
   border-right: 2px solid var(--green-dim);
+}
+
+/* ── Reduce motion accessibility ─────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .scanline {
+    animation: none;
+    display: none;
+  }
+  .typewriter {
+    animation: none;
+    width: 100%;
+  }
+  .blink {
+    animation: none;
+    opacity: 1;
+  }
+  /* Tailwind animate-pulse equivalent — disable via override */
+  .animate-pulse {
+    animation: none !important;
+  }
 }
 
 /* ── Mobile readability ───────────────────────────────────── */

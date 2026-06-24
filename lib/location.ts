@@ -153,6 +153,24 @@ const STATE_MAP: Record<string, string> = {
   "MX-ZAC": "Zacatecas",
 };
 
+const COUNTRY = new Intl.DisplayNames(["en"], { type: "region" });
+function decodeHeader(v: string | null): string {
+  if (!v) return "";
+  try { return decodeURIComponent(v); } catch { return v; }
+}
+function countryName(code: string): string {
+  if (!code) return "";
+  try { return COUNTRY.of(code.toUpperCase()) ?? code; } catch { return code; }
+}
+/** "City, Region, Country" from Vercel edge headers (city-level = the
+ *  project's existing privacy floor; region is the ISO-3166-2 code). */
+export function formatLocationFromHeaders(get: (k: string) => string | null): string {
+  const city = decodeHeader(get("x-vercel-ip-city"));
+  const region = decodeHeader(get("x-vercel-ip-country-region"));
+  const country = countryName(decodeHeader(get("x-vercel-ip-country")));
+  return [city, region, country].filter(Boolean).join(", ") || "unknown";
+}
+
 export function formatLocation(raw: string): string {
   if (!raw || raw === "unknown") return "Unknown location";
 
