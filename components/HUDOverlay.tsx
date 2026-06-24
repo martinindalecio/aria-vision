@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import type { Lang } from "@/lib/i18n";
 
 type HUDOverlayProps = {
@@ -38,6 +39,13 @@ function parseBlock(block: string, lang: Lang): string {
     .join("\n");
 }
 
+function safeLsGet(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function safeLsSet(key: string, value: string): void {
+  try { localStorage.setItem(key, value); } catch { /* ignore */ }
+}
+
 export default function HUDOverlay({
   lines,
   isLoading,
@@ -48,9 +56,27 @@ export default function HUDOverlay({
   onToggleLang,
 }: HUDOverlayProps) {
   const visibleLines = lines.slice(-3);
+  const [showPauseHint, setShowPauseHint] = useState(false);
+
+  useEffect(() => {
+    if (safeLsGet("aria:hint-pause") === "1") return;
+    setShowPauseHint(true);
+    const timer = window.setTimeout(() => {
+      setShowPauseHint(false);
+      safeLsSet("aria:hint-pause", "1");
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  function handleFirstTap() {
+    if (showPauseHint) {
+      setShowPauseHint(false);
+      safeLsSet("aria:hint-pause", "1");
+    }
+  }
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 select-none font-mono text-hud">
+    <div className="pointer-events-none fixed inset-0 z-20 select-none font-mono text-hud" onClick={handleFirstTap}>
       {!isPaused && <div className="scanline" aria-hidden="true" />}
 
       <div className="hud-corner hud-corner-tl" aria-hidden="true" />
@@ -60,10 +86,10 @@ export default function HUDOverlay({
 
       {/* ── Status bar ───────────────────────────────────────── */}
       <div className="pointer-events-auto absolute inset-x-0 top-0 px-4 pt-4">
-        <div className="hud-meta relative flex items-start justify-between text-xs">
+        {/* On narrow screens stack the title below the right-side controls */}
+        <div className="hud-meta hidden items-start justify-between text-xs md:flex">
           <span />
-
-          <span className="absolute left-1/2 top-0 -translate-x-1/2 whitespace-nowrap tracking-widest">
+          <span className="absolute left-1/2 top-4 -translate-x-1/2 whitespace-nowrap tracking-widest">
             {isPaused ? (
               <span className="text-hud-dim">❚❚ ARIA STANDBY</span>
             ) : isOnline ? (
@@ -74,13 +100,12 @@ export default function HUDOverlay({
               <span className="text-red-500">○ ARIA OFFLINE</span>
             )}
           </span>
-
           <span className="flex items-center gap-2 whitespace-nowrap">
             <span className="glow">{sceneCount} SEEN TODAY</span>
             <span className="opacity-30">·</span>
             <button
               onClick={onToggleLang}
-              className="tracking-widest transition-opacity"
+              className="p-2 -m-2 tracking-widest transition-opacity"
               aria-label="toggle language"
             >
               <span className={lang === "en" ? "glow" : "opacity-40"}>[EN]</span>
@@ -88,6 +113,33 @@ export default function HUDOverlay({
               <span className={lang === "es" ? "glow" : "opacity-40"}>[ES]</span>
             </button>
           </span>
+        </div>
+        {/* Mobile layout: controls row + title on its own line */}
+        <div className="hud-meta flex flex-col gap-1 text-xs md:hidden">
+          <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+            <span className="glow">{sceneCount} SEEN TODAY</span>
+            <span className="opacity-30">·</span>
+            <button
+              onClick={onToggleLang}
+              className="p-2 -m-2 tracking-widest transition-opacity"
+              aria-label="toggle language"
+            >
+              <span className={lang === "en" ? "glow" : "opacity-40"}>[EN]</span>
+              <span className="opacity-20 mx-0.5">|</span>
+              <span className={lang === "es" ? "glow" : "opacity-40"}>[ES]</span>
+            </button>
+          </div>
+          <div className="text-center tracking-widest">
+            {isPaused ? (
+              <span className="text-hud-dim">❚❚ ARIA STANDBY</span>
+            ) : isOnline ? (
+              <span className="glow">
+                <span className="animate-pulse">◉</span> ARIA ONLINE
+              </span>
+            ) : (
+              <span className="text-red-500">○ ARIA OFFLINE</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -103,10 +155,20 @@ export default function HUDOverlay({
         )}
         <a
           href={`/log?lang=${lang}`}
-          className="pointer-events-auto absolute bottom-2 right-3 text-xs text-hud-dim transition-colors hover:text-hud"
+          className="pointer-events-auto absolute bottom-2 right-3 p-2 -m-2 text-xs text-hud-dim transition-colors hover:text-hud"
         >
           [LOG]
         </a>
+
+        {/* §2a: one-time TAP TO PAUSE hint */}
+        {showPauseHint && (
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-14 flex justify-center"
+            aria-hidden="true"
+          >
+            <span className="text-xs tracking-widest opacity-40">TAP TO PAUSE</span>
+          </div>
+        )}
 
         <div className="flex h-full flex-col justify-end gap-2 overflow-hidden">
           {visibleLines.map((line, index) => {

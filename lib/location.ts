@@ -153,6 +153,23 @@ const STATE_MAP: Record<string, string> = {
   "MX-ZAC": "Zacatecas",
 };
 
+function decodeHeader(v: string | null): string {
+  if (!v) return "";
+  try { return decodeURIComponent(v); } catch { return v; }
+}
+/** Raw "City, Region, Country" from Vercel edge headers, stored verbatim as
+ *  canonical codes: city + ISO-3166-2 region code + ISO-3166-1 alpha-2 country
+ *  code (e.g. "San Francisco, CA, US"). formatLocation() expands the codes at
+ *  display time via STATE_MAP + Intl, so storage stays canonical and the cron's
+ *  `split(", ")` still yields a real city first and the country last. City-level
+ *  is the project's existing privacy floor; no precise geo. */
+export function formatLocationFromHeaders(get: (k: string) => string | null): string {
+  const city = decodeHeader(get("x-vercel-ip-city"));
+  const region = decodeHeader(get("x-vercel-ip-country-region"));
+  const country = decodeHeader(get("x-vercel-ip-country"));
+  return [city, region, country].filter(Boolean).join(", ") || "unknown";
+}
+
 export function formatLocation(raw: string): string {
   if (!raw || raw === "unknown") return "Unknown location";
 
@@ -169,6 +186,20 @@ export function formatLocation(raw: string): string {
     // Try to expand as a country code
     const expanded = expandCountry(single);
     return expanded !== single ? expanded : single;
+  }
+
+  if (parts.length >= 3) {
+    // "<city>, <region>, <country>" — the current stored format from
+    // formatLocationFromHeaders. Expand the region + country codes; keep the
+    // city verbatim. e.g. "San Francisco, CA, US" → "San Francisco, California,
+    // United States".
+    const city = parts[0].trim();
+    const regionCode = parts[1].trim();
+    const countryCode = parts[parts.length - 1].trim();
+    const country = expandCountry(countryCode);
+    const region =
+      STATE_MAP[`${countryCode.toUpperCase()}-${regionCode.toUpperCase()}`] ?? regionCode;
+    return [city, region, country].filter((p) => p && p !== "unknown").join(", ");
   }
 
   // Two-part: "<region>, <country>"

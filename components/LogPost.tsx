@@ -7,14 +7,21 @@ export default function LogPost({ body }: { body: string }) {
     <ReactMarkdown
       components={{
         p: ({ children }) => (
-          <p className="mb-4 leading-relaxed opacity-90">{children}</p>
+          <p
+            className="mb-4 leading-relaxed"
+            style={{ fontFamily: "'Newsreader', Georgia, serif", color: "var(--dust)", fontSize: "17px", lineHeight: "1.65" }}
+          >
+            {children}
+          </p>
         ),
-        em: ({ children }) => <em className="italic opacity-75">{children}</em>,
+        em: ({ children }) => (
+          <em className="italic" style={{ color: "var(--dust)" }}>{children}</em>
+        ),
         strong: ({ children }) => (
           <strong className="font-bold text-hud">{children}</strong>
         ),
         h2: ({ children }) => (
-          <h2 className="mb-3 mt-6 text-sm tracking-widest opacity-60">
+          <h2 className="mb-3 mt-6 font-mono text-sm tracking-widest text-hud-dim">
             {children}
           </h2>
         ),
