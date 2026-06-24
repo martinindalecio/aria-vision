@@ -97,7 +97,7 @@ export default async function LogPage({
                     href={`#${post.date}`}
                     className="mb-1 block text-xs tracking-widest opacity-40 transition-opacity hover:opacity-70"
                   >
-                    {post.date}
+                    {post.date} · PT
                   </a>
                   <h2 className="glow text-base tracking-wide">{pickTitle(post, lang)}</h2>
                   <div className="mt-1 text-xs opacity-30">

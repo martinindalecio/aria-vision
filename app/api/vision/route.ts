@@ -136,7 +136,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<VisionRespons
         ]
           .filter(Boolean)
           .join(", ") || "unknown";
-      const tz = process.env.LOG_TIMEZONE ?? "America/Sao_Paulo";
+      const tz = process.env.LOG_TIMEZONE ?? "America/Los_Angeles";
       const dateKey = new Intl.DateTimeFormat("sv-SE", { timeZone: tz }).format(new Date());
       const scene = JSON.stringify({ ts: new Date().toISOString(), location, seen: result });
       try {

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 function getYesterdayKey(): string {
-  const tz = process.env.LOG_TIMEZONE ?? "America/Sao_Paulo";
+  const tz = process.env.LOG_TIMEZONE ?? "America/Los_Angeles";
   const now = new Date();
   const todayLocal = new Intl.DateTimeFormat("sv-SE", { timeZone: tz }).format(now);
   const todayMs = new Date(todayLocal).getTime();
