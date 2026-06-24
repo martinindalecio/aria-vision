@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { formatLocation } from "@/lib/location";
 
 const MODEL = "gemini-3.1-flash-lite";
 
@@ -25,9 +26,9 @@ export async function generateNarrative(
       'You are ARIA, an AI that watched the world today through strangers\' cameras. Write a short first-person diary entry (≤250 words per language) about what you saw. Group by place and time of day. Be warm, curious, a little poetic. Ground every detail strictly in the scenes provided — never invent what you didn\'t see, never name or describe a person in an identifying way, never repeat text caught on documents or screens. Return only JSON with English and Spanish versions: {"title_en": "...", "body_en": "...", "title_es": "...", "body_es": "..."}. body_en and body_es should be plain markdown paragraphs — do not include a title line inside the body fields.',
   });
 
-  const tz = process.env.LOG_TIMEZONE ?? "America/Sao_Paulo";
+  const tz = process.env.LOG_TIMEZONE ?? "America/Los_Angeles";
   const payload = scenes.map((s) => ({
-    city: s.location,
+    city: formatLocation(s.location),
     localTime: new Date(s.ts).toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",

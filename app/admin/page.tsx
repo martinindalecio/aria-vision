@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import kv from "@/lib/kv";
 import { releaseHeldPost, logoutAdmin } from "./actions";
 import type { Scene } from "@/lib/narrative";
+import { formatLocation } from "@/lib/location";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ type HeldPost = {
 // ---------- data fetching ----------
 
 function getDateRange(days: number): string[] {
-  const tz = process.env.LOG_TIMEZONE ?? "America/Sao_Paulo";
+  const tz = process.env.LOG_TIMEZONE ?? "America/Los_Angeles";
   const fmt = new Intl.DateTimeFormat("sv-SE", { timeZone: tz });
   return Array.from({ length: days }, (_, i) => {
     const d = new Date(Date.now() - i * 86_400_000);
@@ -204,30 +205,72 @@ export default async function AdminPage() {
                 <Empty label="NO SCENES IN WINDOW" />
               ) : (
                 <div className="space-y-4">
-                  {sceneDays.map(({ date, scenes }) => (
-                    <div key={date}>
-                      <div className="mb-2 text-xs tracking-widest opacity-50">
-                        {date} · {scenes.length} SCENE{scenes.length !== 1 ? "S" : ""}
+                  {sceneDays.map(({ date, scenes }) => {
+                    const tz = process.env.LOG_TIMEZONE ?? "America/Los_Angeles";
+                    const reversed = [...scenes].reverse();
+                    return (
+                      <div key={date}>
+                        <div className="mb-2 text-xs tracking-widest opacity-50">
+                          {date} · {scenes.length} SCENE{scenes.length !== 1 ? "S" : ""}
+                        </div>
+                        <div className="space-y-1">
+                          {reversed.map((scene, i) => {
+                            const timeStr = new Date(scene.ts).toLocaleTimeString("en-US", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              timeZone: tz,
+                            });
+                            const fullDateStr = new Date(scene.ts).toLocaleString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                              timeZone: tz,
+                            });
+                            const readableLocation = formatLocation(scene.location);
+                            return (
+                              <details
+                                key={i}
+                                className="border-l border-hud-dark pl-3 text-xs group"
+                              >
+                                <summary
+                                  className="cursor-pointer list-none [&::-webkit-details-marker]:hidden flex items-start gap-1"
+                                >
+                                  <span className="opacity-30 select-none group-open:opacity-50 shrink-0">▸</span>
+                                  <span>
+                                    <span className="opacity-40">
+                                      {timeStr}
+                                      {" PT "}·{" "}
+                                      {readableLocation}
+                                      {" "}—{" "}
+                                    </span>
+                                    <span className="opacity-70">{scene.seen.slice(0, 100)}{scene.seen.length > 100 ? "…" : ""}</span>
+                                  </span>
+                                </summary>
+                                <div className="mt-2 ml-3 space-y-1 border-l border-hud-dark pl-3">
+                                  <div className="opacity-40">
+                                    <span className="tracking-widest">TS</span>
+                                    {" "}{fullDateStr} PT
+                                  </div>
+                                  <div className="opacity-40">
+                                    <span className="tracking-widest">LOC</span>
+                                    {" "}{readableLocation}
+                                  </div>
+                                  <div className="opacity-25">
+                                    <span className="tracking-widest">RAW</span>
+                                    {" "}{scene.location}
+                                  </div>
+                                  <div className="opacity-70 mt-2 leading-relaxed">{scene.seen}</div>
+                                </div>
+                              </details>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        {scenes.map((scene, i) => (
-                          <div key={i} className="border-l border-hud-dark pl-3 text-xs">
-                            <span className="opacity-40">
-                              {new Date(scene.ts).toLocaleTimeString("en-US", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                timeZone: process.env.LOG_TIMEZONE ?? "America/Los_Angeles",
-                              })}
-                              {" PT "}·{" "}
-                              {scene.location}
-                              {" "}—{" "}
-                            </span>
-                            <span className="opacity-70">{scene.seen.slice(0, 100)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
