@@ -58,8 +58,10 @@ export default function LogFeed({
     });
   }
 
-  const firstPost = posts[0] ?? null;
-  const olderPosts = posts.slice(1);
+  const PAGE_SIZE = 3;
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(posts.length / PAGE_SIZE));
+  const pagePosts = posts.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <>
@@ -85,39 +87,32 @@ export default function LogFeed({
         </div>
       ) : (
         <div className="mt-10 space-y-12">
-          {/* Most recent entry — always expanded */}
-          {firstPost && (
-            <PostEntry post={firstPost} lang={lang} />
-          )}
-
-          {/* Older entries — collapsed by default */}
-          {olderPosts.map((post) => (
-            <details key={post.date} className="group border-t border-hud-dark pt-4">
-              <summary className="cursor-pointer list-none font-mono">
-                <div className="flex items-start gap-2">
-                  <span className="mt-0.5 text-xs text-hud-dim select-none group-open:hidden">▸</span>
-                  <span className="mt-0.5 text-xs text-hud-dim select-none hidden group-open:inline">▾</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs tracking-widest text-hud-dim opacity-60 mb-0.5">{post.date} · PT</div>
-                    <div
-                      className="text-base tracking-wide leading-snug"
-                      style={{
-                        fontFamily: "'Instrument Serif', Georgia, serif",
-                        color: "var(--green)",
-                        textShadow: "0 0 8px var(--green)",
-                      }}
-                    >
-                      {pickTitle(post, lang)}
-                    </div>
-                    <SourceStrip post={post} lang={lang} />
-                  </div>
-                </div>
-              </summary>
-              <div className="mt-4 pl-4">
-                <LogPost body={pickBody(post, lang)} />
-              </div>
-            </details>
+          {pagePosts.map((post) => (
+            <PostEntry key={post.date} post={post} lang={lang} />
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-12 flex items-center gap-4 font-mono text-xs tracking-widest">
+          <button
+            onClick={() => { setPage((p) => p - 1); window.scrollTo(0, 0); }}
+            disabled={page === 0}
+            className="opacity-40 transition-opacity hover:opacity-80 disabled:opacity-20 disabled:cursor-default"
+          >
+            ← NEWER
+          </button>
+          <span className="opacity-30">
+            {page + 1} / {totalPages}
+          </span>
+          <button
+            onClick={() => { setPage((p) => p + 1); window.scrollTo(0, 0); }}
+            disabled={page === totalPages - 1}
+            className="opacity-40 transition-opacity hover:opacity-80 disabled:opacity-20 disabled:cursor-default"
+          >
+            OLDER →
+          </button>
         </div>
       )}
 
