@@ -8,11 +8,14 @@ export const maxDuration = 60;
 
 function getYesterdayKey(): string {
   const tz = process.env.LOG_TIMEZONE ?? "America/Los_Angeles";
-  const now = new Date();
-  const todayLocal = new Intl.DateTimeFormat("sv-SE", { timeZone: tz }).format(now);
-  const todayMs = new Date(todayLocal).getTime();
-  const yesterdayMs = todayMs - 24 * 60 * 60 * 1000;
-  return new Date(yesterdayMs).toISOString().slice(0, 10);
+  // "Yesterday" in the log timezone: shift back 24h from now, then format that
+  // instant in tz. Formatting in tz (instead of parsing a date-only string as
+  // UTC midnight and subtracting) keeps the key correct regardless of the
+  // server's UTC offset. This trails `now` by one tz-day, so the cron must fire
+  // AFTER local midnight (see vercel.json: 09:00 UTC = 01:00 PST / 02:00 PDT)
+  // for it to land on the day that just ended, not the day before that.
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: tz }).format(yesterday);
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -31,6 +34,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     // Step 2: skip if no scenes
     if (scenes.length === 0) {
+      console.warn(`[ARIA-CRON] no scenes for ${dateKey} — nothing to publish`);
       return NextResponse.json({ message: `no scenes for ${dateKey}` });
     }
 
@@ -58,6 +62,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const narrative = await generateNarrative(scenes, stats);
 
     if (narrative.hold) {
+      console.warn(`[ARIA-CRON] held ${dateKey} (narrative parse): ${narrative.reason}`);
       await kv.set(`aria:held:${dateKey}`, {
         title: "[NARRATIVE PARSE ERROR]",
         body_md: "",
@@ -72,6 +77,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const review = await reviewNarrative({ title_en, body_en, title_es, body_es });
 
     if (review.verdict === "hold") {
+      console.warn(`[ARIA-CRON] held ${dateKey} (privacy review): ${review.reason}`);
       await kv.set(`aria:held:${dateKey}`, {
         title_en,
         title_es,
@@ -104,6 +110,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     await kv.set(`aria:post:${dateKey}`, post);
     await kv.zadd("aria:posts", { score, member: dateKey });
 
+    console.log(`[ARIA-CRON] published ${dateKey}: ${title_en}`);
     return NextResponse.json({ message: "published", dateKey, title: title_en });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
