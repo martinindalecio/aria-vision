@@ -21,11 +21,12 @@ export type CameraViewHandle = {
 
 type CameraViewProps = {
   isPaused: boolean;
+  facingMode: "environment" | "user";
   onTogglePause: () => void;
 };
 
 const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(
-  function CameraView({ isPaused, onTogglePause }, ref) {
+  function CameraView({ isPaused, facingMode, onTogglePause }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const wakeLockRef = useRef<WakeLockSentinel | null>(null);
@@ -84,17 +85,25 @@ const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(
         }
         try {
           try {
+            // `exact` forces the requested lens so the flip actually switches on
+            // multi-camera phones (a soft constraint can keep the current camera).
             stream = await navigator.mediaDevices.getUserMedia({
               video: {
-                facingMode: "environment",
+                facingMode: { exact: facingMode },
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
               },
               audio: false,
             });
           } catch {
+            // Single-camera devices (most laptops) reject `exact` — retry soft so
+            // we still show whatever camera exists rather than erroring out.
             stream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: "user" },
+              video: {
+                facingMode,
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+              },
               audio: false,
             });
           }
@@ -126,7 +135,9 @@ const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(
         void wakeLockRef.current?.release().catch(() => undefined);
         wakeLockRef.current = null;
       };
-    }, []);
+      // Re-acquire the stream when the user flips the camera. Cleanup above stops
+      // the previous lens's tracks before the new request runs.
+    }, [facingMode]);
 
     return (
       <div
@@ -142,7 +153,7 @@ const CameraView = forwardRef<CameraViewHandle, CameraViewProps>(
           muted
           className={`h-full w-full object-cover transition-opacity duration-300 ${
             isPaused ? "opacity-40" : "opacity-100"
-          }`}
+          } ${facingMode === "user" ? "-scale-x-100" : ""}`}
         />
         <canvas ref={canvasRef} className="hidden" />
 

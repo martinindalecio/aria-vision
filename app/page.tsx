@@ -38,6 +38,7 @@ export default function Home() {
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [sceneCount, setSceneCount] = useState<number>(0);
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
 
   const cameraRef = useRef<CameraViewHandle>(null);
   const linesRef = useRef<string[]>([BOOT_LINE]);
@@ -64,6 +65,10 @@ export default function Home() {
       pausedRef.current = !prev;
       return !prev;
     });
+  }, []);
+
+  const toggleFacing = useCallback((): void => {
+    setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
   }, []);
 
   const toggleLang = useCallback((): void => {
@@ -159,7 +164,12 @@ export default function Home() {
 
   return (
     <main className="h-screen w-screen overflow-hidden bg-black">
-      <CameraView ref={cameraRef} isPaused={isPaused} onTogglePause={togglePause} />
+      <CameraView
+        ref={cameraRef}
+        isPaused={isPaused}
+        facingMode={facingMode}
+        onTogglePause={togglePause}
+      />
       <HUDOverlay
         lines={lines}
         isLoading={isLoading}
@@ -168,6 +178,7 @@ export default function Home() {
         isOnline={isOnline}
         lang={lang}
         onToggleLang={toggleLang}
+        onToggleFacing={toggleFacing}
       />
     </main>
   );

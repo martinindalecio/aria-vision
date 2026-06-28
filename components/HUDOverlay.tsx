@@ -11,6 +11,7 @@ type HUDOverlayProps = {
   isOnline: boolean;
   lang: Lang;
   onToggleLang: () => void;
+  onToggleFacing: () => void;
 };
 
 // Each Gemini response is a multi-line block. Parse each line individually
@@ -54,6 +55,7 @@ export default function HUDOverlay({
   isOnline,
   lang,
   onToggleLang,
+  onToggleFacing,
 }: HUDOverlayProps) {
   const visibleLines = lines.slice(-3);
   const [showPauseHint, setShowPauseHint] = useState(false);
@@ -112,6 +114,14 @@ export default function HUDOverlay({
               <span className="opacity-20 mx-0.5">|</span>
               <span className={lang === "es" ? "glow" : "opacity-40"}>[ES]</span>
             </button>
+            <span className="opacity-30">·</span>
+            <button
+              onClick={onToggleFacing}
+              className="p-2 -m-2 tracking-widest transition-opacity active:opacity-60"
+              aria-label="switch camera"
+            >
+              [FLIP]
+            </button>
           </span>
         </div>
         {/* Mobile layout: controls row + title on its own line */}
@@ -127,6 +137,14 @@ export default function HUDOverlay({
               <span className={lang === "en" ? "glow" : "opacity-40"}>[EN]</span>
               <span className="opacity-20 mx-0.5">|</span>
               <span className={lang === "es" ? "glow" : "opacity-40"}>[ES]</span>
+            </button>
+            <span className="opacity-30">·</span>
+            <button
+              onClick={onToggleFacing}
+              className="p-2 -m-2 tracking-widest transition-opacity active:opacity-60"
+              aria-label="switch camera"
+            >
+              [FLIP]
             </button>
           </div>
           <div className="text-center tracking-widest">
