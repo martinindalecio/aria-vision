@@ -157,6 +157,11 @@ function decodeHeader(v: string | null): string {
   if (!v) return "";
   try { return decodeURIComponent(v); } catch { return v; }
 }
+
+/** IP country code only — reliable on mobile; use as fallback when GPS is unavailable. */
+export function countryOnlyFromHeaders(get: (k: string) => string | null): string {
+  return decodeHeader(get("x-vercel-ip-country")) || "unknown";
+}
 /** Raw "City, Region, Country" from Vercel edge headers, stored verbatim as
  *  canonical codes: city + ISO-3166-2 region code + ISO-3166-1 alpha-2 country
  *  code (e.g. "San Francisco, CA, US"). formatLocation() expands the codes at

@@ -39,9 +39,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
 
     // Step 3: compute stats
+    // Only scenes with a comma-separated location have a real city (GPS-derived).
+    // Country-only entries (GPS declined) must not be counted as cities.
     const cities = [
       ...new Set(
         scenes
+          .filter((s) => s.location.includes(", "))
           .map((s) => s.location.split(", ")[0])
           .filter((c) => c && c !== "unknown")
       ),

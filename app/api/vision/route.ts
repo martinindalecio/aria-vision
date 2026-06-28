@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { visionRateLimiter } from "@/lib/rateLimiter";
 import kv from "@/lib/kv";
-import { formatLocationFromHeaders } from "@/lib/location";
+import { countryOnlyFromHeaders } from "@/lib/location";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,9 +12,12 @@ export const dynamic = "force-dynamic";
 const MODEL = "gemini-3.1-flash-lite";
 const MAX_TOKENS = 200;
 
+type GeoBody = { city?: string; region?: string; country?: string };
+
 type VisionRequestBody = {
   imageBase64?: string;
   prevContext?: string;
+  geo?: GeoBody;
 };
 
 type VisionResponseBody = {
@@ -47,33 +50,31 @@ function getClient(): GoogleGenerativeAI {
   return genAI;
 }
 
-// Minimal request logging: one structured line per request to the runtime logs
-// (read with: `vercel logs <deployment> | grep ARIA-LOG`). Records the outcome,
-// the scene description the model returned ("what was seen"), and coarse
-// IP-based location from Vercel's edge headers. No image is stored and no
-// precise geolocation is requested (that would need a browser consent prompt).
 type Outcome = "ok" | "no_signal" | "throttled" | "signal_lost" | "empty_input";
+
+function sanitizeGeo(s: string | undefined): string {
+  if (!s) return "";
+  return s.trim().replace(/,/g, "").slice(0, 60);
+}
+
+// GPS names take priority; falls back to IP country code only (reliable on mobile).
+// IP city/region are intentionally dropped — carrier PoPs scatter city-level IP
+// geo across unrelated cities for cellular users.
+function resolveLocation(req: NextRequest, geo?: GeoBody): string {
+  if (geo?.country) {
+    const city = sanitizeGeo(geo.city);
+    const region = sanitizeGeo(geo.region);
+    const country = sanitizeGeo(geo.country);
+    return [city, region, country].filter(Boolean).join(", ");
+  }
+  return countryOnlyFromHeaders((k) => req.headers.get(k));
+}
+
 function logOutcome(
-  req: NextRequest,
   outcome: Outcome,
+  location: string,
   extra: { seen?: string; outputTokens?: number; error?: string } = {}
 ): void {
-  const decode = (v: string | null): string | undefined => {
-    if (!v) return undefined;
-    try {
-      return decodeURIComponent(v);
-    } catch {
-      return v;
-    }
-  };
-  const location =
-    [
-      decode(req.headers.get("x-vercel-ip-city")),
-      decode(req.headers.get("x-vercel-ip-country-region")),
-      decode(req.headers.get("x-vercel-ip-country")),
-    ]
-      .filter(Boolean)
-      .join(", ") || "unknown";
   console.log(
     "[ARIA-LOG] " +
       JSON.stringify({ ts: new Date().toISOString(), outcome, location, ...extra })
@@ -84,8 +85,10 @@ export async function POST(req: NextRequest): Promise<NextResponse<VisionRespons
   try {
     const body = (await req.json()) as VisionRequestBody;
     const imageBase64 = typeof body.imageBase64 === "string" ? body.imageBase64 : "";
+    const location = resolveLocation(req, body.geo);
+
     if (!imageBase64) {
-      logOutcome(req, "empty_input");
+      logOutcome("empty_input", location);
       return NextResponse.json({ result: "[SIGNAL LOST]", inputTokens: 0, outputTokens: 0 });
     }
 
@@ -93,7 +96,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<VisionRespons
     // we tell the client to back off rather than letting Google issue a hard 429.
     if (!visionRateLimiter.tryAcquire()) {
       const retryAfterSec = Math.max(1, Math.ceil(visionRateLimiter.retryAfterMs() / 1000));
-      logOutcome(req, "throttled");
+      logOutcome("throttled", location);
       return NextResponse.json(
         { result: "[ARIA THROTTLED — QUEUED]", inputTokens: 0, outputTokens: 0, throttled: true },
         { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
@@ -122,11 +125,10 @@ export async function POST(req: NextRequest): Promise<NextResponse<VisionRespons
     const outputTokens = usage?.candidatesTokenCount ?? 0;
 
     const outcome: Outcome = text.length > 0 ? "ok" : "no_signal";
-    logOutcome(req, outcome, { seen: result, outputTokens });
+    logOutcome(outcome, location, { seen: result, outputTokens });
 
     let sceneCount: number | undefined;
     if (outcome === "ok") {
-      const location = formatLocationFromHeaders((k) => req.headers.get(k));
       const tz = process.env.LOG_TIMEZONE ?? "America/Los_Angeles";
       const dateKey = new Intl.DateTimeFormat("sv-SE", { timeZone: tz }).format(new Date());
       const scene = JSON.stringify({ ts: new Date().toISOString(), location, seen: result });
@@ -147,7 +149,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<VisionRespons
     });
   } catch (error) {
     console.error("[ARIA] vision route error:", error);
-    logOutcome(req, "signal_lost", {
+    logOutcome("signal_lost", "unknown", {
       error: error instanceof Error ? error.message.slice(0, 200) : String(error).slice(0, 200),
     });
     return NextResponse.json({ result: "[SIGNAL LOST]", inputTokens: 0, outputTokens: 0 });
