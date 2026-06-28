@@ -6,6 +6,7 @@ import HUDOverlay from "@/components/HUDOverlay";
 import LangPrompt from "@/components/LangPrompt";
 import { motionDetector } from "@/lib/motionDetector";
 import { parseLang, type Lang } from "@/lib/i18n";
+import { getSessionLocation, type GeoResult } from "@/lib/geo";
 
 const MAX_LINES = 3;
 const CAPTURE_TICK_MS = 100;
@@ -44,6 +45,8 @@ export default function Home() {
   const pausedRef = useRef<boolean>(false);
   const inFlightRef = useRef<boolean>(false);
   const throttleUntilRef = useRef<number>(0);
+  const geoRef = useRef<GeoResult | null>(null);
+  const locationStartedRef = useRef<boolean>(false);
 
   // Read stored language preference on mount
   useEffect(() => {
@@ -94,7 +97,11 @@ export default function Home() {
       const res = await fetch("/api/vision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: frame, prevContext }),
+        body: JSON.stringify({
+          imageBase64: frame,
+          prevContext,
+          ...(geoRef.current ? { geo: geoRef.current } : {}),
+        }),
       });
       if (res.status === 429) {
         const retryAfter = Number(res.headers.get("Retry-After")) || 4;
@@ -133,6 +140,16 @@ export default function Home() {
       window.removeEventListener("offline", goOffline);
     };
   }, []);
+
+  // Acquire GPS location once after lang is chosen — runs in parallel with capture loop.
+  useEffect(() => {
+    if (!lang || locationStartedRef.current) return;
+    locationStartedRef.current = true;
+    pushLine("[ALLOW LOCATION TO PIN YOUR CITY — OPTIONAL]");
+    void getSessionLocation().then((result) => {
+      geoRef.current = result;
+    });
+  }, [lang, pushLine]);
 
   // Capture loop — only starts after lang is chosen
   useEffect(() => {
